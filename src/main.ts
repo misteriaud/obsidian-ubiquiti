@@ -23,6 +23,7 @@ export default class MyPlugin extends Plugin {
 	obsidianProvider: ObsidianProvider = new ObsidianProvider(this.app, this.ydoc, this.basePath);
 
 	async onload() {
+		await this.obsidianProvider.loadProvider();
 		// const basePath = (this.app.vault.adapter as any).basePath;
 		// this.distant_provider = new WebsocketProvider('ws://localhost:8080', "vault_name", this.ydoc);
 		await this.loadSettings();
