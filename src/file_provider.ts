@@ -20,14 +20,6 @@ export class ObsidianProvider extends Observable<string> {
 		this.app = app;
 		this.doc = doc;
 		this.filesystem = doc.getMap("filesystem");
-
-		let temp_text = new Y.Text();
-
-		this.filesystem.set("file1.md", temp_text);
-		this.filesystem.set("file2.md", temp_text);
-		this.filesystem.set("test/file3.md", temp_text);
-		this.filesystem.set("test/file4.md", temp_text);
-		this.filesystem.set("test/subtest/file5.md", temp_text);
 	}
 
 	destroy(): void {
@@ -35,8 +27,6 @@ export class ObsidianProvider extends Observable<string> {
 	}
 
 	async loadProvider() {
-		// console.log(this.doc);
-
 		// When documents are modified locally
 		this.app.vault.on("create", async (file: TFile) => this.populateCreateToYdoc(file), this);
 		this.app.vault.on("modify", async (file: TFile) => this.populateModifToYdoc(file), this);
@@ -44,17 +34,23 @@ export class ObsidianProvider extends Observable<string> {
 		this.app.vault.on("rename", async (file: TFile, oldPath) => this.populateRenameToYdoc(file, oldPath), this);
 
 		//When documents are modifier remotely
-		this.doc.on('update', (update, origin) => {
-			if (origin === this)
-				return;
-			this.emit('update', [update])
-		})
+		// this.doc.on('update', (update, origin) => {
+		// 	if (origin === this)
+		// 		return;
+		// 	Y.logUpdate(update)
+		// 	// this.emit('update', [update])
+		// })
 		await this.initDoc();
+
+		console.log(this.doc);
 	}
 
 	async initDoc() {
-		const localDoc: Y.Doc = new Y.Doc();
+		let localDoc: Y.Doc = new Y.Doc();
+		let localFilesystem = localDoc.getMap("filesystem");
 		let current_text: Y.Text;
+
+
 		// copy all file from distant to local
 		const localMarkdown: TFile[] = this.app.vault.getMarkdownFiles();
 		this.filesystem.forEach(async (text, path) => {
@@ -78,11 +74,13 @@ export class ObsidianProvider extends Observable<string> {
 		await asyncForEach(this.app.vault.getMarkdownFiles(), async (file: TFile) => {
 			current_text = localDoc.getText(file.path);
 			current_text.insert(0, await this.app.vault.read(file));
+			// localFilesystem.set(file.path, current_text);
 		});
 
 		// merge both
 		Y.applyUpdate(this.doc, Y.encodeStateAsUpdate(localDoc));
 
+		console.log(this.doc.share)
 		//clean localDoc
 		localDoc.destroy();
 	}
