@@ -13,13 +13,11 @@ async function asyncForEach(array: Array<any>, callback: Function) {
 export class ObsidianProvider extends Observable<string> {
 	app: App;
 	doc: Y.Doc;
-	filesystem: Y.Map<Y.Text>;
 	// vault_path: String;
 	constructor(app: App, doc: Y.Doc, vault_path: String) {
 		super();
 		this.app = app;
 		this.doc = doc;
-		this.filesystem = doc.getMap("filesystem");
 	}
 
 	destroy(): void {
@@ -41,48 +39,58 @@ export class ObsidianProvider extends Observable<string> {
 		// 	// this.emit('update', [update])
 		// })
 		await this.initDoc();
-
-		console.log(this.doc);
+		console.log(this.doc)
+		this.doc.getText("trojan.md").insert(0, "coucouuuu");
 	}
 
 	async initDoc() {
-		let localDoc: Y.Doc = new Y.Doc();
-		let localFilesystem = localDoc.getMap("filesystem");
 		let current_text: Y.Text;
-
+		const files = this.doc.share.entries();
 
 		// copy all file from distant to local
-		const localMarkdown: TFile[] = this.app.vault.getMarkdownFiles();
-		this.filesystem.forEach(async (text, path) => {
-			if (!localMarkdown.some(file => file.path === path)) {
-				console.log(path);
+		let localMarkdown: TFile[] = this.app.vault.getMarkdownFiles();
+		console.log(localMarkdown);
+		for (let item of files) {
+			const index = localMarkdown.findIndex(file => file.path == item[0]);
+			// if distant file doesnt exist in local
+			if (index < 0) {
+				console.log(item[0]);
 				let temp_dir = "";
-				const temp_filesystem = path.split("/");
+				const temp_filesystem = item[0].split("/");
 				for (let level = 0; level < temp_filesystem.length - 1; level++) {
 					console.log("create dir " + temp_dir + temp_filesystem[level]);
 					await this.app.vault.createFolder(temp_dir + temp_filesystem[level]);
 					temp_dir += temp_filesystem[level] + "/";
 				}
-				console.log("create " + path);
-				await this.app.vault.create(path, text.toString());
-				current_text = localDoc.getText(path);
-				current_text.insert(0, text.toString());
+				console.log("create " + item[0]);
+				await this.app.vault.create(item[0], item[1].toString());
 			}
-		});
 
-		// create a local doc
-		await asyncForEach(this.app.vault.getMarkdownFiles(), async (file: TFile) => {
-			current_text = localDoc.getText(file.path);
+			// if distant file already exist we merge them
+			else {
+				const deltas: YDelta[] = getDeltaOperations(
+					item[1].toString(),
+					await this.app.vault.read(localMarkdown[index])
+				);
+				if (deltas.length > 0)
+					(item[1] as Y.Text).applyDelta(deltas);
+				// we retrieve the file from localMarkdown to only process after files that only exist in local
+				localMarkdown.splice(index, 1);
+			}
+		}
+
+		//adding files existing only in local
+		asyncForEach(localMarkdown, async (file: TFile) => {
+			current_text = this.doc.getText(file.path);
 			current_text.insert(0, await this.app.vault.read(file));
-			// localFilesystem.set(file.path, current_text);
-		});
+		})
 
-		// merge both
-		Y.applyUpdate(this.doc, Y.encodeStateAsUpdate(localDoc));
-
-		console.log(this.doc.share)
-		//clean localDoc
-		localDoc.destroy();
+		//create observable for each yFiles
+		for (let item of this.doc.share.entries()) {
+			item[1].observe( (event, trans) => {
+				console.log(item[0] + ": " + event);
+			})
+		}
 	}
 
 	// ToYDoc
@@ -91,7 +99,6 @@ export class ObsidianProvider extends Observable<string> {
 			return;
 		let current_text = this.doc.getText(file.path);
 		current_text.insert(0, await this.app.vault.read(file));
-		this.filesystem.set(file.path, current_text);
 	}
 	async populateModifToYdoc(file: TFile) {
 		if (!this || !this.doc)
@@ -106,13 +113,10 @@ export class ObsidianProvider extends Observable<string> {
 		if (!this || !this.doc)
 			return;
 		this.doc.getText(file.path).delete(0, this.doc.getText.length);
-		this.filesystem.delete(file.path);
 	}
 	async populateRenameToYdoc(file: TFile, oldPath: string) {
 		if (!this || !this.doc)
 			return;
-		this.filesystem.set(file.path, this.filesystem.get(oldPath) as Y.Text);
-		this.filesystem.delete(oldPath);
 	}
 
 

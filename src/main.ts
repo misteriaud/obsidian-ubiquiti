@@ -19,10 +19,16 @@ export default class MyPlugin extends Plugin {
 	basePath: string = "Dev/obsidian_dev";
 	ydoc: Y.Doc = new Y.Doc;
 	settings: MyPluginSettings;
-	distant_provider: WebsocketProvider;
+	// distantProvider: WebsocketProvider = new WebsocketProvider('ws://localhost:8080', "vault_name", this.ydoc);
+	// distant_provider: WebsocketProvider;
 	obsidianProvider: ObsidianProvider = new ObsidianProvider(this.app, this.ydoc, this.basePath);
 
 	async onload() {
+		this.ydoc.getText("vimium.md");
+		this.ydoc.getText("VScode.md");
+		this.ydoc.getText("trojan.md");
+		this.ydoc.getText("Maxime Riaud.md");
+
 		await this.obsidianProvider.loadProvider();
 		// const basePath = (this.app.vault.adapter as any).basePath;
 		// this.distant_provider = new WebsocketProvider('ws://localhost:8080', "vault_name", this.ydoc);
@@ -30,6 +36,7 @@ export default class MyPlugin extends Plugin {
 	}
 
 	onunload() {
+		console.log("conunload called")
 		this.obsidianProvider.destroy();
 		this.ydoc.destroy();
 	}
