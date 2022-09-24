@@ -1,5 +1,5 @@
 import * as Y from 'yjs';
-import { App, TFile } from 'obsidian';
+import { App, MarkdownEditView, TFile } from 'obsidian';
 // import { YMap, YText } from 'yjs/dist/src/internals';
 import { Observable } from 'lib0/observable.js';
 import { YDelta, getDeltaOperations } from "./getDeltas"
@@ -21,26 +21,23 @@ export class ObsidianProvider extends Observable<string> {
 	}
 
 	destroy(): void {
-		this.doc.off("update", () => { });
+		// this.doc.off("update", () => { });
+		this.app.vault.
 	}
 
 	async loadProvider() {
+		this.app.workspace.getActiveViewOfType()
+
 		// When documents are modified locally
 		this.app.vault.on("create", async (file: TFile) => this.populateCreateToYdoc(file), this);
 		this.app.vault.on("modify", async (file: TFile) => this.populateModifToYdoc(file), this);
 		this.app.vault.on("delete", async (file: TFile) => this.populateDeleteToYdoc(file), this);
 		this.app.vault.on("rename", async (file: TFile, oldPath) => this.populateRenameToYdoc(file, oldPath), this);
 
-		//When documents are modifier remotely
-		// this.doc.on('update', (update, origin) => {
-		// 	if (origin === this)
-		// 		return;
-		// 	Y.logUpdate(update)
-		// 	// this.emit('update', [update])
-		// })
 		await this.initDoc();
-		console.log(this.doc)
-		this.doc.getText("trojan.md").insert(0, "coucouuuu");
+		// console.log(this.doc)
+		// this.doc.getText("file1.md").insert(0, "coucouuuu");
+		// this.doc.getText("file1.md").insert(3, "hey");
 	}
 
 	async initDoc() {
@@ -53,18 +50,8 @@ export class ObsidianProvider extends Observable<string> {
 		for (let item of files) {
 			const index = localMarkdown.findIndex(file => file.path == item[0]);
 			// if distant file doesnt exist in local
-			if (index < 0) {
-				console.log(item[0]);
-				let temp_dir = "";
-				const temp_filesystem = item[0].split("/");
-				for (let level = 0; level < temp_filesystem.length - 1; level++) {
-					console.log("create dir " + temp_dir + temp_filesystem[level]);
-					await this.app.vault.createFolder(temp_dir + temp_filesystem[level]);
-					temp_dir += temp_filesystem[level] + "/";
-				}
-				console.log("create " + item[0]);
-				await this.app.vault.create(item[0], item[1].toString());
-			}
+			if (index < 0)
+				await this.createFile(item[0], item[1] as Y.Text);
 
 			// if distant file already exist we merge them
 			else {
@@ -80,7 +67,7 @@ export class ObsidianProvider extends Observable<string> {
 		}
 
 		//adding files existing only in local
-		asyncForEach(localMarkdown, async (file: TFile) => {
+		await asyncForEach(localMarkdown, async (file: TFile) => {
 			current_text = this.doc.getText(file.path);
 			current_text.insert(0, await this.app.vault.read(file));
 		})
@@ -88,48 +75,70 @@ export class ObsidianProvider extends Observable<string> {
 		//create observable for each yFiles
 		for (let item of this.doc.share.entries()) {
 			item[1].observe( (event, trans) => {
-				console.log(item[0] + ": " + event);
+				this.populateModifToFile(item[0], event, trans);
 			})
 		}
 	}
 
 	// ToYDoc
 	async populateCreateToYdoc(file: TFile) {
+		console.log("create to YDoc")
 		if (!this || !this.doc)
 			return;
 		let current_text = this.doc.getText(file.path);
 		current_text.insert(0, await this.app.vault.read(file));
 	}
 	async populateModifToYdoc(file: TFile) {
+		console.log("modif to YDoc")
 		if (!this || !this.doc)
 			return;
 		let current_text: Y.Text = this.doc.getText(file.path);
 		let delta: YDelta[] = [];
 		delta = getDeltaOperations(current_text.toString(), await this.app.vault.read(file));
-		if (delta.length > 0)
+		if (delta.length > 0){
+			console.log(delta);
 			current_text.applyDelta(delta);
+		}
 	}
 	async populateDeleteToYdoc(file: TFile) {
+		console.log("delete to YDoc")
 		if (!this || !this.doc)
 			return;
 		this.doc.getText(file.path).delete(0, this.doc.getText.length);
 	}
 	async populateRenameToYdoc(file: TFile, oldPath: string) {
+		console.log("rename to YDoc")
 		if (!this || !this.doc)
 			return;
 	}
 
 
-	async populateModifToFile(path: string, ytext: Y.YTextEvent) {
-		console.log(path);
-		console.log(ytext.changes.delta);
-		// if (!this || !this.ydoc)
-		// 	return ;
-		// let current_text: YText = this.ydoc.getText(file.path);
-		// let delta: YDelta[] = [];
-		// delta = getDeltaOperations(current_text.toString(), await this.app.vault.read(file));
-		// if (delta.length > 0)
-		// 	current_text.applyDelta(delta);
+	async populateModifToFile(path: string, event: Y.YEvent<any>, trans: Y.Transaction) {
+		console.log("modif to file")
+		const markdownFiles = this.app.vault.getMarkdownFiles();
+		const index = markdownFiles.findIndex(file => file.path === path);
+
+		console.log(trans.origin);
+		if (!trans.origin)
+			return ;
+		// file need to be create
+		if (index < 0)
+			await this.createFile(path, event.target);
+		// file already exist
+		else
+			await this.app.vault.modify(markdownFiles[index], await event.target.toString());
+	}
+
+	async createFile(path: string, ytext: Y.Text) {
+		let temp_dir = "";
+		const temp_filesystem = path.split("/");
+		for (let level = 0; level < temp_filesystem.length - 1; level++) {
+			console.log("create dir " + temp_dir + temp_filesystem[level]);
+			await this.app.vault.createFolder(temp_dir + temp_filesystem[level]);
+			temp_dir += temp_filesystem[level] + "/";
+		}
+		// console.log("create " + item[0]);
+		await this.app.vault.create(path, ytext.toString());
 	}
 
 	get(key: String | number | ArrayBuffer | Date) {

@@ -58,7 +58,7 @@ Quick starting guide for new plugin devs:
 - Copy over `main.js`, `styles.css`, `manifest.json` to your vault `VaultFolder/.obsidian/plugins/your-plugin-id/`.
 
 ## Improve code quality with eslint (optional)
-- [ESLint](https://eslint.org/) is a tool that analyzes your code to quickly find problems. You can run ESLint against your plugin to find common bugs and ways to improve your code. 
+- [ESLint](https://eslint.org/) is a tool that analyzes your code to quickly find problems. You can run ESLint against your plugin to find common bugs and ways to improve your code.
 - To use eslint with this project, make sure to install eslint from terminal:
   - `npm install -g eslint`
 - To use eslint to analyze this project use this command:
@@ -71,3 +71,15 @@ Quick starting guide for new plugin devs:
 ## API Documentation
 
 See https://github.com/obsidianmd/obsidian-api
+
+
+# Fonctionnement
+Le fonctionnement du plugin repose en deux structure de données:
+### Le ydoc
+il est la source de veritée, il contient tous les fichiers virtuels qui sont disponibles dans le vaults sous une representation de Y.Text
+Il est necessaire d'avoir une sauvegarde a froid de ce YDoc
+
+### Les fichier markdown
+C'est la sauvegarde a froid du YDoc grace a un module de persistance créé surmesure pour ca
+
+ensuite il faut faire en sorte que l'editeur ne modifi plus les fichier markdown mais plutot le ydoc, qui a sont tour va modifier les markdown.
